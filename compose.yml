@@ -1,0 +1,75 @@
+name: owncloud
+
+services:
+  owncloud-redis:
+    image: redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    container_name: owncloud-redis
+    restart: unless-stopped
+    command: ["redis-server", "--databases", "1", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - owncloud-redis-data:/data
+    networks: [owncloud-network]
+    pids_limit: 256
+    cpus: 0.5
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "5"}
+
+  owncloud-server:
+    image: owncloud/server:11.0.0@sha256:79b286cc06ec8bed102e76d7ee9abc6cc864635e8aa6ed391881bc1926eaeae7
+    container_name: owncloud-server
+    restart: unless-stopped
+    depends_on:
+      owncloud-redis: {condition: service_healthy}
+    environment:
+      OWNCLOUD_DB_PREFIX: ${OWNCLOUD_DB_PREFIX}
+      OWNCLOUD_TRUSTED_DOMAINS: ${OWNCLOUD_TRUSTED_DOMAINS:-localhost,127.0.0.1}
+      OWNCLOUD_OVERWRITE_CLI_URL: ${OWNCLOUD_OVERWRITE_CLI_URL:-http://127.0.0.1:9200}
+      OWNCLOUD_TRUSTED_PROXIES: ${OWNCLOUD_TRUSTED_PROXIES:-10.0.8.1}
+      OWNCLOUD_DB_TYPE: pgsql
+      OWNCLOUD_DB_NAME: owncloud
+      OWNCLOUD_DB_USERNAME: owncloud_app
+      OWNCLOUD_DB_PASSWORD: ${OWNCLOUD_PG_PASSWORD:?required}
+      OWNCLOUD_DB_HOST: 10.8.12.11:5433
+      OWNCLOUD_DB_FAIL: "true"
+      OWNCLOUD_REDIS_ENABLED: "true"
+      OWNCLOUD_REDIS_HOST: owncloud-redis
+      OWNCLOUD_REDIS_PORT: "6379"
+      OWNCLOUD_CROND_ENABLED: "true"
+      OWNCLOUD_VERSION_HIDE: "true"
+      OWNCLOUD_LOG_LEVEL: "2"
+      OWNCLOUD_LOG_ROTATE_SIZE: "104857600"
+    ports:
+      - "127.0.0.1:${OWNCLOUD_HTTP_PORT:-9200}:8080"
+    healthcheck:
+      test: ["CMD", "/usr/bin/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    volumes:
+      - type: bind
+        source: /mnt/owncloud-data
+        target: /mnt/data
+    networks: [owncloud-network]
+    pids_limit: 1024
+    cpus: 2.5
+    mem_limit: 3g
+    logging:
+      driver: json-file
+      options: {max-size: 20m, max-file: "5"}
+
+networks:
+  owncloud-network:
+    name: owncloud-network
+    driver: bridge
+
+volumes:
+  owncloud-redis-data: {name: owncloud-redis-data}

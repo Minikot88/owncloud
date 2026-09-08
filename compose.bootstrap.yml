@@ -1,0 +1,5 @@
+services:
+  owncloud-server:
+    environment:
+      OWNCLOUD_ADMIN_USERNAME: ${OWNCLOUD_ADMIN_USERNAME:?required_for_initial_bootstrap}
+      OWNCLOUD_ADMIN_PASSWORD: ${OWNCLOUD_ADMIN_PASSWORD:?required_for_initial_bootstrap}
